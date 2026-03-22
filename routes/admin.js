@@ -47,7 +47,27 @@ router.put('/tests/:id', wrap((req, res) => {
 
 // Delete test
 router.delete('/tests/:id', wrap((req, res) => {
-  db.run('DELETE FROM tests WHERE id = ?', [req.params.id]);
+  const testId = req.params.id;
+  // Get all question IDs for this test
+  const questions = db.all('SELECT id FROM questions WHERE test_id = ?', [testId]);
+  const qIds = questions.map(q => q.id);
+
+  // Delete child records for each question
+  for (const qId of qIds) {
+    db.run('DELETE FROM sample_test_cases WHERE question_id = ?', [qId]);
+    db.run('DELETE FROM hidden_test_cases WHERE question_id = ?', [qId]);
+    db.run('DELETE FROM boilerplate_code WHERE question_id = ?', [qId]);
+  }
+  db.run('DELETE FROM questions WHERE test_id = ?', [testId]);
+
+  // Delete attempt-related data
+  const attempts = db.all('SELECT id FROM test_attempts WHERE test_id = ?', [testId]);
+  for (const a of attempts) {
+    db.run('DELETE FROM question_submissions WHERE attempt_id = ?', [a.id]);
+  }
+  db.run('DELETE FROM test_attempts WHERE test_id = ?', [testId]);
+
+  db.run('DELETE FROM tests WHERE id = ?', [testId]);
   res.json({ message: 'Deleted' });
 }));
 
